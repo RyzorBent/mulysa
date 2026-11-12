@@ -4,3 +4,5 @@ node_modules/
 .env.*
 .superpowers/
 .DS_Store
+.vercel
+.env*
