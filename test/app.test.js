@@ -54,14 +54,14 @@ const sendBody = {
   photoIds: [PHOTO_IDS[0]],
 };
 
-test('GET /api/config lists the provinces, the locked notice and whether a code is needed', async (t) => {
+test('GET /api/config lists the provinces, the locked notice and the photos', async (t) => {
   const { call, close } = await start({ mailer: fakeMailer() });
   t.after(close);
   const res = await call('GET', '/api/config');
   assert.equal(res.status, 200);
   assert.equal(res.json.provinces.length, 5);
   assert.equal(res.json.lockedNotice, LOCKED_NOTICE);
-  assert.equal(res.json.accessCodeRequired, false);
+  assert.equal('accessCodeRequired' in res.json, false);
   assert.equal(res.json.photos.length, PHOTO_IDS.length);
   assert.deepEqual(res.json.photos[0], { id: PHOTO_IDS[0], url: photoUrl(PHOTO_IDS[0]) });
 });
@@ -73,6 +73,15 @@ test('POST /api/generate returns a number with the province prefix', async (t) =
   assert.equal(res.status, 200);
   assert.match(res.json.mockNumber, /^CTR-\d{4}-\d{6}$/);
   assert.equal(res.json.prefix, 'CTR');
+});
+
+test('the old ACCESS_CODE setting is ignored: no code is ever needed', async (t) => {
+  process.env.ACCESS_CODE = 'leftover-code';
+  t.after(() => { delete process.env.ACCESS_CODE; });
+  const { call, close } = await start({ mailer: fakeMailer() });
+  t.after(close);
+  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' });
+  assert.equal(res.status, 200);
 });
 
 test('POST /api/generate rejects an unknown province with 400', async (t) => {
@@ -88,54 +97,6 @@ test('malformed JSON gets a 400, not a crash', async (t) => {
   t.after(close);
   const res = await call('POST', '/api/generate', '{not json');
   assert.equal(res.status, 400);
-});
-
-test('with an access code set, API calls without it are refused', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
-  t.after(close);
-  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' });
-  assert.equal(res.status, 401);
-});
-
-test('with an access code set, the right code is accepted', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
-  t.after(close);
-  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' }, { 'x-access-code': 'letmein' });
-  assert.equal(res.status, 200);
-});
-
-test('with an access code set, a wrong code is refused', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
-  t.after(close);
-  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' }, { 'x-access-code': 'nope' });
-  assert.equal(res.status, 401);
-  assert.equal(res.json.reason, 'access-code-wrong');
-  assert.match(res.json.error, /not right/i);
-});
-
-test('with an access code set, a missing code asks for it rather than calling it wrong', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
-  t.after(close);
-  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' });
-  assert.equal(res.status, 401);
-  assert.equal(res.json.reason, 'access-code-missing');
-  assert.match(res.json.error, /enter the tester access code/i);
-  assert.doesNotMatch(res.json.error, /not right/i);
-});
-
-test('with an access code set, a near-miss (capitals, spaces, odd dashes) is accepted', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'mulysa-kemzr-h24fd' });
-  t.after(close);
-  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' }, { 'x-access-code': ' Mulysa - KEMZR - h24fd ' });
-  assert.equal(res.status, 200);
-});
-
-test('with an access code set, config still loads and says a code is needed', async (t) => {
-  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
-  t.after(close);
-  const res = await call('GET', '/api/config');
-  assert.equal(res.status, 200);
-  assert.equal(res.json.accessCodeRequired, true);
 });
 
 test('POST /api/verify checks the login with the tester credentials', async (t) => {

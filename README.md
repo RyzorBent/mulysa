@@ -61,14 +61,10 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 56 tests, no network needed
+npm test           # 43 tests, no network needed
 ```
 
-Set `PORT` to use a different port. Set `ACCESS_CODE` to try the access-code screen locally:
-
-```bash
-ACCESS_CODE=letmein npm start
-```
+Set `PORT` to use a different port.
 
 ## Deploy to Vercel
 
@@ -76,16 +72,7 @@ Vercel runs this Express app with no extra configuration: `server.js` default-ex
 files in `public/` are served by Vercel's CDN.
 
 1. Import the repo in the Vercel dashboard, or run `vercel` in this folder.
-2. **Set an access code** so only your testers can use it:
-   Project → Settings → Environment Variables → `ACCESS_CODE` = something you share with testers.
-   Without it, anyone who finds the link can use the app. Testers can type it in any case, and stray
-   spaces, quotes or "smart" dashes from copy-pasting are ignored.
-
-   **Easiest for testers:** send them a link with the code in it, so they never see the code box:
-   `https://<your-app>.vercel.app/?code=<the code>` (or `#code=<the code>`). Anyone opening the plain
-   address without the code still gets stopped. Don't hard-code the code into the page itself: anyone
-   can read page source, so that would be the same as having no code at all.
-3. Redeploy after adding the variable.
+2. That's it. There are no environment variables to set.
 
 Why not Render's free plan: since September 2025 it blocks the outgoing ports Gmail needs (465/587).
 A paid Render instance would work.
@@ -94,12 +81,11 @@ A paid Render instance would work.
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/api/config` | none | provinces, locked notice, max photos, whether an access code is needed |
+| GET | `/api/config` | none | provinces, locked notice, max photos, photo list |
 | POST | `/api/generate` | `{ province }` | `{ mockNumber, prefix, province }` |
 | POST | `/api/verify` | `{ gmail, appPassword }` | `{ ok: true }` |
 | POST | `/api/send` | `{ gmail, appPassword, to, subject, message, photoIds }` | `{ ok, accepted, rejected, messageId, sentAt }` |
 
-When `ACCESS_CODE` is set, every call except `/api/config` needs an `x-access-code` header.
 
 ## Good to know
 
@@ -118,11 +104,10 @@ When `ACCESS_CODE` is set, every call except `/api/config` needs an `x-access-co
 
 ```
 server.js          entry point: Vercel imports it; `npm start` runs it
-lib/app.js         Express routes, access code, error handling
+lib/app.js         Express routes and error handling
 lib/reference.js   provinces and mock number generation
 lib/email.js       validates input, builds the email, adds the locked notice
 lib/mailer.js      Gmail SMTP: one connection per request, logging off
-lib/access.js      tester access code check (forgiving about case, spaces, dashes)
 lib/photos.js      approved placeholder photo list
 public/            the page (index.html, styles.css, app.js)
 test/              node:test suites

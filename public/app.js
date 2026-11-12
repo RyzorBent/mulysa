@@ -1,6 +1,6 @@
 // Front-end for the mock reference demo.
 //
-// PRIVACY: the Gmail address, app password and access code are read straight
+// PRIVACY: the Gmail address and app password are read straight
 // from their input boxes at the moment a request is made. They are not copied
 // into any variable that lives on, and nothing is put in localStorage,
 // sessionStorage or cookies. Reloading the page clears everything.
@@ -9,7 +9,6 @@ const $ = (id) => document.getElementById(id);
 
 // Only non-sensitive page state lives here.
 const state = {
-  accessCodeRequired: false,
   maxImages: 4,
   photos: [],         // [{ id, url }] the approved photo list, from /api/config
   photoIds: [],       // the photos currently in the email
@@ -18,40 +17,9 @@ const state = {
 
 // ---------- helpers ----------
 
-/**
- * Tidies the access code the same way the server does (lib/access.js): no capitals,
- * spaces, quotes or invisible characters, and fancy dashes become "-". Also needed
- * because browsers refuse to send non-Latin characters in a request header.
- */
-function cleanAccessCode(value) {
-  return value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
-    .replace(/[\s\u200B-\u200D\u2060\uFEFF\u00AD`'"\u2018\u2019\u201C\u201D]/g, '')
-    .replace(/[^\x21-\x7E]/g, ''); // anything else non-ASCII can't be in the code anyway
-}
-
-/** Draws the tester's eye to the access code box: scroll to it, outline it, focus it. */
-function flagAccessCode() {
-  const input = $('access-code');
-  $('step-access').hidden = false; // may have been hidden because the code came in the link
-  input.classList.add('needs-attention');
-  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  input.focus({ preventScroll: true });
-}
-
 /** Calls the API. Throws an Error with the server's friendly message on failure. */
 async function api(path, body) {
   const headers = { 'content-type': 'application/json' };
-  const code = cleanAccessCode($('access-code').value);
-  if (code) headers['x-access-code'] = code;
-
-  // Don't bother the server if we already know the code is missing.
-  if (state.accessCodeRequired && !code && path !== '/api/config') {
-    flagAccessCode();
-    throw new Error('Enter the tester access code at the top of the page first.');
-  }
 
   let res;
   try {
@@ -67,13 +35,9 @@ async function api(path, body) {
 
   let data = {};
   try { data = await res.json(); } catch { /* non-JSON reply */ }
-  if (data.reason?.startsWith('access-code-')) flagAccessCode();
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
   return data;
 }
-
-// Clear the highlight as soon as they start typing a code.
-$('access-code').addEventListener('input', () => $('access-code').classList.remove('needs-attention'));
 
 function setStatus(el, text, kind) {
   el.textContent = text;
@@ -317,13 +281,6 @@ $('btn-send').addEventListener('click', async () => {
 
 // ---------- start-up ----------
 
-/** Reads ?code=… or #code=… from the page address, if present. */
-function accessCodeFromLink() {
-  const fromQuery = new URLSearchParams(location.search).get('code');
-  const fromHash = new URLSearchParams(location.hash.slice(1)).get('code');
-  return (fromQuery || fromHash || '').trim();
-}
-
 async function init() {
   try {
     const config = await api('/api/config');
@@ -337,13 +294,6 @@ async function init() {
     }
 
     $('locked-notice').textContent = `"${config.lockedNotice}"`;
-    // Testers can be sent a link with the code in it (…/?code=XYZ or …/#code=XYZ),
-    // so they never have to type it. Then the code box stays out of the way,
-    // unless the code turns out to be wrong.
-    const codeFromLink = accessCodeFromLink();
-    if (codeFromLink) $('access-code').value = codeFromLink;
-    $('step-access').hidden = !config.accessCodeRequired || Boolean(codeFromLink);
-    state.accessCodeRequired = config.accessCodeRequired;
     state.maxImages = config.maxImages;
     state.photos = config.photos;
   } catch (err) {

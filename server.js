@@ -16,6 +16,5 @@ if (runDirectly && !process.env.VERCEL) {
   const port = Number(process.env.PORT) || 3000;
   app.listen(port, () => {
     console.log(`Mock reference demo running at http://localhost:${port}`);
-    if (process.env.ACCESS_CODE) console.log('Access code is ON (ACCESS_CODE is set).');
   });
 }
