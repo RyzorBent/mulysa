@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Mock Asylum Reference Generator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1>Mock Asylum Reference Generator</h1>
+      <p class="lede">A learning demo: generate a fake reference number and email it from your own Gmail.</p>
+    </header>
+
+    <div class="banner" role="note">
+      <strong>⚠ Learning demo.</strong> Every reference number here is fake and is not issued by the Department of Home Affairs.
+      Never point this at real government systems.
+    </div>
+
+    <!-- Only shown when the server has ACCESS_CODE set. -->
+    <section class="step" id="step-access" hidden>
+      <h2>Tester access code</h2>
+      <p class="hint">Ask whoever runs this demo for the code.</p>
+      <div class="row">
+        <input id="access-code" type="password" autocomplete="off" spellcheck="false"
+               data-lpignore="true" data-1p-ignore placeholder="Access code" aria-label="Tester access code">
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="h-gmail">
+      <h2 id="h-gmail"><span class="n">1</span>Your Gmail account</h2>
+
+      <div class="safe">
+        <strong>🛡 None of your details are remembered by this platform.</strong>
+        Your Gmail address and app password are used only to send each email, then thrown away.
+        They are never saved to a database, a file, your browser, or our logs. Reloading the page clears them.
+      </div>
+
+      <div class="row">
+        <input id="gmail" type="email" autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore
+               placeholder="you@gmail.com" aria-label="Your Gmail address">
+      </div>
+      <div class="row">
+        <input id="app-password" type="password" autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore
+               placeholder="App password (16 characters)" aria-label="Gmail app password">
+        <button type="button" class="btn ghost" id="btn-verify">Test connection</button>
+        <button type="button" class="btn ghost" id="btn-forget">Forget my details</button>
+      </div>
+      <p class="status" id="verify-status" aria-live="polite"></p>
+      <p class="hint">
+        Gmail needs an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">app password</a>,
+        not your normal password (2-Step Verification must be on).
+        Tip: create one just for testing, and delete it from your Google account when you're done.
+      </p>
+    </section>
+
+    <section class="step" aria-labelledby="h-province">
+      <h2 id="h-province"><span class="n">2</span>Choose province</h2>
+      <div class="row">
+        <select id="province" aria-label="Province"></select>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="h-generate">
+      <h2 id="h-generate"><span class="n">3</span>Generate number</h2>
+      <div class="row">
+        <button type="button" class="btn" id="btn-generate">Generate mock number</button>
+      </div>
+      <div class="number" id="number-box" hidden>
+        <span id="number" class="number-value"></span>
+        <span class="badge">FAKE · DEMO ONLY</span>
+      </div>
+      <p class="status" id="generate-status" aria-live="polite"></p>
+    </section>
+
+    <section class="step" aria-labelledby="h-compose">
+      <h2 id="h-compose"><span class="n">4</span>Write the email</h2>
+
+      <label class="field-label" for="to">To</label>
+      <div class="row">
+        <input id="to" type="email" autocomplete="off" placeholder="recipient@example.com">
+      </div>
+
+      <label class="field-label" for="subject">Subject</label>
+      <div class="row">
+        <input id="subject" type="text" maxlength="200" placeholder="Generate a number to fill this in">
+      </div>
+
+      <label class="field-label" for="message">Message <span class="muted">(pre-filled, edit freely)</span></label>
+      <textarea id="message" rows="8" maxlength="5000" placeholder="Generate a number to fill this in"></textarea>
+
+      <p class="field-label">Photos <span class="muted">(from Lorem Picsum · ↻ swaps for a different random photo)</span></p>
+      <div class="photos" id="photos"></div>
+      <div class="row">
+        <button type="button" class="btn ghost" id="btn-add-photo">+ Add photo</button>
+      </div>
+
+      <div class="locked">
+        <span>🔒 Added to every email, can't be edited out:</span>
+        <em id="locked-notice"></em>
+      </div>
+
+      <div class="row send-row">
+        <span class="muted">Like any email, a copy will appear in your own Gmail Sent folder.</span>
+        <button type="button" class="btn" id="btn-send">Send</button>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="h-result">
+      <h2 id="h-result"><span class="n">5</span>Delivery result</h2>
+      <div id="result" class="result" aria-live="polite">
+        <p class="muted">Nothing sent yet.</p>
+      </div>
+    </section>
+
+    <footer class="page-footer">
+      Learning demo · numbers are random and fake · nothing you type is stored
+    </footer>
+  </main>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
