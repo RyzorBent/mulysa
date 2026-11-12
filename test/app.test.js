@@ -167,3 +167,117 @@ test('a Gmail login failure gives a friendly 502 that does not leak the password
   assert.ok(!res.raw.includes('abcdefghijklmnop'));
   assert.ok(!logged.join('\n').includes('abcdefghijklmnop'));
 });
+
+// ---------- usage counters and the hidden stats page ----------
+
+import { createMemoryCounter } from '../lib/stats.js';
+
+test('opening the page (loading /api/config) counts one visit', async (t) => {
+  const counter = createMemoryCounter();
+  const { call, close } = await start({ mailer: fakeMailer(), counter });
+  t.after(close);
+  await call('GET', '/api/config');
+  await call('GET', '/api/config');
+  assert.equal((await counter.read(1)).today.visits, 2);
+});
+
+test('a successful send is counted', async (t) => {
+  const counter = createMemoryCounter();
+  const { call, close } = await start({ mailer: fakeMailer(), counter });
+  t.after(close);
+  await call('POST', '/api/send', sendBody);
+  assert.equal((await counter.read(1)).today.sends, 1);
+});
+
+test('failed or invalid sends are not counted', async (t) => {
+  const counter = createMemoryCounter();
+  const fail = Object.assign(new Error('nope'), { code: 'EAUTH' });
+  const { call, close } = await start({ mailer: fakeMailer({ fail }), counter });
+  t.after(close);
+  const original = console.error;
+  console.error = () => {};
+  t.after(() => { console.error = original; });
+  await call('POST', '/api/send', sendBody);
+  await call('POST', '/api/send', { ...sendBody, to: 'not-an-email' });
+  assert.equal((await counter.read(1)).today.sends, 0);
+});
+
+test('a broken counter never breaks the page or sending', async (t) => {
+  const broken = {
+    recordVisit: async () => { throw new Error('redis down'); },
+    recordSend: async () => { throw new Error('redis down'); },
+    read: async () => { throw new Error('redis down'); },
+  };
+  const original = console.error;
+  console.error = () => {};
+  t.after(() => { console.error = original; });
+  const { call, close } = await start({ mailer: fakeMailer(), counter: broken });
+  t.after(close);
+  assert.equal((await call('GET', '/api/config')).status, 200);
+  assert.equal((await call('POST', '/api/send', sendBody)).status, 200);
+});
+
+test('POST /api/stats is switched off (503) when no stats password is set', async (t) => {
+  const { call, close } = await start({ mailer: fakeMailer(), counter: createMemoryCounter(), statsPassword: '' });
+  t.after(close);
+  const res = await call('POST', '/api/stats', { password: 'anything' });
+  assert.equal(res.status, 503);
+});
+
+test('POST /api/stats refuses a wrong password', async (t) => {
+  const { call, close } = await start({ mailer: fakeMailer(), counter: createMemoryCounter(), statsPassword: 'right-one' });
+  t.after(close);
+  assert.equal((await call('POST', '/api/stats', { password: 'wrong' })).status, 401);
+  assert.equal((await call('POST', '/api/stats', {})).status, 401);
+});
+
+test('POST /api/stats returns the counts with the right password', async (t) => {
+  const counter = createMemoryCounter();
+  await counter.recordVisit();
+  await counter.recordSend();
+  const { call, close } = await start({ mailer: fakeMailer(), counter, statsPassword: 'right-one' });
+  t.after(close);
+  const res = await call('POST', '/api/stats', { password: 'right-one' });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.days.length, 30);
+  assert.deepEqual(res.json.totals, { visits: 1, sends: 1 });
+  assert.ok(!res.raw.includes('right-one'), 'password is not echoed back');
+});
+
+test('reading stats does not count as a visit', async (t) => {
+  const counter = createMemoryCounter();
+  const { call, close } = await start({ mailer: fakeMailer(), counter, statsPassword: 'pw' });
+  t.after(close);
+  await call('POST', '/api/stats', { password: 'pw' });
+  assert.equal((await counter.read(1)).today.visits, 0);
+});
+
+test('GET /stats serves the hidden page and tells search engines to stay away', async (t) => {
+  const { close } = await start({ mailer: fakeMailer(), counter: createMemoryCounter() });
+  t.after(close);
+  // call() helper parses JSON; fetch the page directly instead.
+  const app = createApp({ mailer: fakeMailer(), counter: createMemoryCounter() });
+  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  t.after(() => new Promise((r) => server.close(r)));
+  const res = await fetch(`http://127.0.0.1:${server.address().port}/stats`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('x-robots-tag') ?? '', /noindex/);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(html, /Usage stats/);
+});
+
+test('POST /api/stats explains when counting is not connected', async (t) => {
+  const disabled = {
+    recordVisit: async () => {}, recordSend: async () => {},
+    read: async () => { throw Object.assign(new Error('Counting is not connected'), { code: 'COUNTER_DISABLED' }); },
+  };
+  const original = console.error;
+  console.error = () => {};
+  t.after(() => { console.error = original; });
+  const { call, close } = await start({ mailer: fakeMailer(), counter: disabled, statsPassword: 'pw' });
+  t.after(close);
+  const res = await call('POST', '/api/stats', { password: 'pw' });
+  assert.equal(res.status, 503);
+  assert.match(res.json.error, /Redis/);
+});

@@ -27,7 +27,9 @@ Every email ends with this notice, added on the server so it can't be edited out
 
 ## What happens to testers' details
 
-**The server stores nothing.** Anything remembered lives only in the tester's own browser, and they can clear it at any time.
+**The server stores nothing the tester types.** Anything remembered lives only in the tester's own browser,
+and they can clear it at any time. The only thing the server keeps is two anonymous numbers per day (see
+[Usage stats](#usage-stats-hidden-page)).
 
 On the server:
 
@@ -58,6 +60,25 @@ browser storage rules above hold.
 **Advice for testers:** create an app password just for this demo and delete it afterwards at
 <https://myaccount.google.com/apppasswords>. Once it's deleted it stops working, whatever happens.
 
+## Usage stats (hidden page)
+
+`/stats` (e.g. `https://mulysa.vercel.app/stats`) is a password-protected page for the owner. It isn't
+linked from the app and tells search engines not to index it. It shows **page visits** and **successful
+email sends** for today, each of the last 30 days, and all time, using South African days.
+
+- **What's counted:** a visit each time the page is opened, and a send each time Gmail accepts an email.
+  Failed or invalid sends aren't counted. Opening `/stats` doesn't count as a visit.
+- **What's stored:** two numbers per day in Upstash Redis (`mulysa:day:YYYY-MM-DD` → `{visits, sends}`,
+  expiring after about 13 months) plus all-time totals. No IP addresses, email addresses or anything
+  else about who visited.
+- **Settings:** `STATS_PASSWORD` unlocks the page; without it the page is switched off. The Redis
+  connection comes from the Upstash for Redis Marketplace integration (`KV_REST_API_URL` /
+  `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
+- **Without Redis:** locally the counts are kept in memory and reset on restart. On Vercel counting is
+  switched off and the stats page says so, rather than showing wrong numbers.
+- A broken or slow Redis never breaks the app: counting gives up after 1.5 seconds and the page and
+  sending carry on.
+
 ## Getting a Gmail app password
 
 1. Turn on 2-Step Verification for the Google account.
@@ -73,10 +94,11 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 58 tests, no network needed
+npm test           # 83 tests, no network needed
 ```
 
-Set `PORT` to use a different port.
+Set `PORT` to use a different port. Set `STATS_PASSWORD` to try the stats page at `/stats` (counts are
+kept in memory locally).
 
 ## Deploy to Vercel
 
@@ -84,7 +106,9 @@ Vercel runs this Express app with no extra configuration: `server.js` default-ex
 files in `public/` are served by Vercel's CDN.
 
 1. Import the repo in the Vercel dashboard, or run `vercel` in this folder.
-2. That's it. There are no environment variables to set.
+2. Add the **Upstash for Redis** integration from the Vercel Marketplace and connect it to the project
+   (it adds the Redis settings), and set `STATS_PASSWORD` for the stats page. Both are optional: the app
+   works without them, just without stats.
 
 Why not Render's free plan: since September 2025 it blocks the outgoing ports Gmail needs (465/587).
 A paid Render instance would work.
@@ -97,6 +121,7 @@ A paid Render instance would work.
 | POST | `/api/generate` | `{ province }` | `{ mockNumber, prefix, province }` |
 | POST | `/api/verify` | `{ gmail, appPassword }` | `{ ok: true }` |
 | POST | `/api/send` | `{ gmail, appPassword, to, subject, message, photoIds }` | `{ ok, accepted, rejected, messageId, sentAt }` |
+| POST | `/api/stats` | `{ password }` | `{ today, days[30], totals }` (owner only) |
 
 
 ## Good to know
@@ -121,6 +146,7 @@ lib/reference.js   provinces and mock number generation
 lib/email.js       validates input, builds the email, adds the locked notice
 lib/mailer.js      Gmail SMTP: one connection per request, logging off
 lib/photos.js      approved placeholder photo list
-public/            the page (index.html, styles.css, app.js, storage.js)
+lib/stats.js       anonymous daily visit/send counters (Upstash Redis)
+public/            the page (index.html, styles.css, app.js, storage.js) and the hidden stats.html/stats.js
 test/              node:test suites
 ```

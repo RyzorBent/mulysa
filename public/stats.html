@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Usage stats</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1>Usage stats</h1>
+      <p class="lede">Page visits and successful email sends per day (South African time). Counts only, nothing about who.</p>
+    </header>
+
+    <section class="step" id="unlock-step">
+      <form id="unlock-form" class="row" autocomplete="on">
+        <!-- Lets password managers file this under a name; the value is never used. -->
+        <input type="text" name="username" value="mulysa-stats" autocomplete="username" hidden>
+        <input id="password" name="password" type="password" autocomplete="current-password"
+               placeholder="Stats password" aria-label="Stats password" required>
+        <button type="submit" class="btn" id="btn-unlock">Show stats</button>
+      </form>
+      <p class="status" id="unlock-status" aria-live="polite"></p>
+    </section>
+
+    <div id="stats" hidden>
+      <div class="row stats-toolbar">
+        <span class="muted" id="stats-updated"></span>
+        <span>
+          <button type="button" class="btn ghost" id="btn-refresh">Refresh</button>
+          <button type="button" class="btn ghost" id="btn-lock">Lock</button>
+        </span>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><span class="tile-label">Visits today</span><span class="tile-value" id="today-visits">0</span></div>
+        <div class="tile"><span class="tile-label">Sends today</span><span class="tile-value" id="today-sends">0</span></div>
+        <div class="tile"><span class="tile-label">Visits, all time</span><span class="tile-value" id="total-visits">0</span></div>
+        <div class="tile"><span class="tile-label">Sends, all time</span><span class="tile-value" id="total-sends">0</span></div>
+      </div>
+
+      <section class="step">
+        <h2>Last 30 days</h2>
+        <table class="daily">
+          <thead>
+            <tr><th scope="col">Day</th><th scope="col">Visits</th><th scope="col">Sends</th></tr>
+          </thead>
+          <tbody id="daily-rows"></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+  <script src="stats.js" type="module"></script>
+</body>
+</html>
