@@ -11,11 +11,26 @@ const $ = (id) => document.getElementById(id);
 const state = {
   accessCodeRequired: false,
   maxImages: 4,
-  seeds: [],          // Lorem Picsum seeds for the photos
+  photos: [],         // [{ id, url }] the approved photo list, from /api/config
+  photoIds: [],       // the photos currently in the email
   current: null,      // { number, province } of the last generated number
 };
 
 // ---------- helpers ----------
+
+/**
+ * Tidies the access code the same way the server does (lib/access.js): no capitals,
+ * spaces, quotes or invisible characters, and fancy dashes become "-". Also needed
+ * because browsers refuse to send non-Latin characters in a request header.
+ */
+function cleanAccessCode(value) {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+    .replace(/[\s\u200B-\u200D\u2060\uFEFF\u00AD`'"\u2018\u2019\u201C\u201D]/g, '')
+    .replace(/[^\x21-\x7E]/g, ''); // anything else non-ASCII can't be in the code anyway
+}
 
 /** Draws the tester's eye to the access code box: scroll to it, outline it, focus it. */
 function flagAccessCode() {
@@ -28,7 +43,7 @@ function flagAccessCode() {
 /** Calls the API. Throws an Error with the server's friendly message on failure. */
 async function api(path, body) {
   const headers = { 'content-type': 'application/json' };
-  const code = $('access-code').value.trim();
+  const code = cleanAccessCode($('access-code').value);
   if (code) headers['x-access-code'] = code;
 
   // Don't bother the server if we already know the code is missing.
@@ -69,14 +84,16 @@ function credentials() {
   return { gmail: $('gmail').value, appPassword: $('app-password').value };
 }
 
-function randomSeed() {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 10);
+/** Picks a random photo from the approved list, preferring one not already in the email. */
+function randomPhotoId(except = []) {
+  const unused = state.photos.filter((p) => !state.photoIds.includes(p.id) && !except.includes(p.id));
+  const pool = unused.length ? unused : state.photos;
+  return pool[Math.floor(Math.random() * pool.length)].id;
 }
 
-// Must match picsumUrl() in lib/email.js so the preview is exactly what is sent.
-function picsumUrl(seed) {
-  return `https://picsum.photos/seed/${seed}/600/360`;
+/** Same URL the server puts in the email, so the preview is exactly what is sent. */
+function photoUrlFor(id) {
+  return state.photos.find((p) => p.id === id)?.url ?? '';
 }
 
 // ---------- step 1: Gmail ----------
@@ -174,19 +191,19 @@ function renderPhotos() {
   const grid = $('photos');
   grid.replaceChildren();
 
-  if (state.seeds.length === 0) {
+  if (state.photoIds.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'photos-empty';
     empty.textContent = 'No photos. The email will be text only.';
     grid.append(empty);
   }
 
-  state.seeds.forEach((seed, index) => {
+  state.photoIds.forEach((id, index) => {
     const tile = document.createElement('div');
     tile.className = 'photo';
 
     const img = document.createElement('img');
-    img.src = picsumUrl(seed);
+    img.src = photoUrlFor(id);
     img.alt = `Placeholder photo ${index + 1}`;
     img.loading = 'lazy';
 
@@ -197,7 +214,7 @@ function renderPhotos() {
     swap.title = 'Swap for a different photo';
     swap.setAttribute('aria-label', `Swap photo ${index + 1}`);
     swap.addEventListener('click', () => {
-      state.seeds[index] = randomSeed();
+      state.photoIds[index] = randomPhotoId([id]);
       renderPhotos();
     });
 
@@ -208,7 +225,7 @@ function renderPhotos() {
     remove.title = 'Remove this photo';
     remove.setAttribute('aria-label', `Remove photo ${index + 1}`);
     remove.addEventListener('click', () => {
-      state.seeds.splice(index, 1);
+      state.photoIds.splice(index, 1);
       renderPhotos();
     });
 
@@ -216,12 +233,12 @@ function renderPhotos() {
     grid.append(tile);
   });
 
-  $('btn-add-photo').disabled = state.seeds.length >= state.maxImages;
+  $('btn-add-photo').disabled = state.photoIds.length >= state.maxImages || state.photos.length === 0;
 }
 
 $('btn-add-photo').addEventListener('click', () => {
-  if (state.seeds.length < state.maxImages) {
-    state.seeds.push(randomSeed());
+  if (state.photoIds.length < state.maxImages && state.photos.length) {
+    state.photoIds.push(randomPhotoId());
     renderPhotos();
   }
 });
@@ -260,7 +277,7 @@ $('btn-send').addEventListener('click', async () => {
       to: $('to').value,
       subject: $('subject').value,
       message: $('message').value,
-      imageSeeds: state.seeds,
+      photoIds: state.photoIds,
     });
 
     const time = new Date(data.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -315,11 +332,14 @@ async function init() {
     $('step-access').hidden = !config.accessCodeRequired;
     state.accessCodeRequired = config.accessCodeRequired;
     state.maxImages = config.maxImages;
+    state.photos = config.photos;
   } catch (err) {
     showResult((box) => addLine(box, `✗ Could not load the page settings: ${err.message}`, 'err'));
   }
 
-  state.seeds = Array.from({ length: Math.min(3, state.maxImages) }, randomSeed);
+  for (let i = 0; i < Math.min(3, state.maxImages) && state.photos.length; i++) {
+    state.photoIds.push(randomPhotoId());
+  }
   renderPhotos();
 }
 

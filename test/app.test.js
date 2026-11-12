@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../lib/app.js';
 import { LOCKED_NOTICE } from '../lib/email.js';
+import { PHOTO_IDS, photoUrl } from '../lib/photos.js';
 
 const PASSWORD = 'abcd efgh ijkl mnop';
 
@@ -50,7 +51,7 @@ const sendBody = {
   to: 'friend@example.com',
   subject: 'Your reference number PTA-2026-481927',
   message: 'Hello',
-  imageSeeds: ['abc'],
+  photoIds: [PHOTO_IDS[0]],
 };
 
 test('GET /api/config lists the provinces, the locked notice and whether a code is needed', async (t) => {
@@ -61,6 +62,8 @@ test('GET /api/config lists the provinces, the locked notice and whether a code 
   assert.equal(res.json.provinces.length, 5);
   assert.equal(res.json.lockedNotice, LOCKED_NOTICE);
   assert.equal(res.json.accessCodeRequired, false);
+  assert.equal(res.json.photos.length, PHOTO_IDS.length);
+  assert.deepEqual(res.json.photos[0], { id: PHOTO_IDS[0], url: photoUrl(PHOTO_IDS[0]) });
 });
 
 test('POST /api/generate returns a number with the province prefix', async (t) => {
@@ -118,6 +121,13 @@ test('with an access code set, a missing code asks for it rather than calling it
   assert.equal(res.json.reason, 'access-code-missing');
   assert.match(res.json.error, /enter the tester access code/i);
   assert.doesNotMatch(res.json.error, /not right/i);
+});
+
+test('with an access code set, a near-miss (capitals, spaces, odd dashes) is accepted', async (t) => {
+  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'mulysa-kemzr-h24fd' });
+  t.after(close);
+  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' }, { 'x-access-code': ' Mulysa - KEMZR - h24fd ' });
+  assert.equal(res.status, 200);
 });
 
 test('with an access code set, config still loads and says a code is needed', async (t) => {

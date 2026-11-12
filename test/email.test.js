@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { composeEmail, LOCKED_NOTICE, MAX_IMAGES, picsumUrl, ValidationError } from '../lib/email.js';
+import { composeEmail, LOCKED_NOTICE, MAX_IMAGES, ValidationError } from '../lib/email.js';
+import { PHOTO_IDS, photoUrl } from '../lib/photos.js';
 
 const valid = {
   to: 'friend@example.com',
   subject: 'Your reference number PTA-2026-481927',
   message: 'Hello,\n\nYour reference number is PTA-2026-481927.',
-  imageSeeds: ['abc123'],
+  photoIds: [PHOTO_IDS[0]],
 };
 
 test('always adds the locked demo notice to the plain-text body', () => {
@@ -41,15 +42,26 @@ test('keeps line breaks from the message in the HTML', () => {
   assert.ok(email.html.includes('line one<br>line two'));
 });
 
-test('turns image seeds into Lorem Picsum images in the HTML', () => {
-  const email = composeEmail({ ...valid, imageSeeds: ['abc123', 'x-y_z'] });
-  assert.ok(email.html.includes(`src="${picsumUrl('abc123')}"`));
-  assert.ok(email.html.includes(`src="${picsumUrl('x-y_z')}"`));
-  assert.equal(picsumUrl('abc123'), 'https://picsum.photos/seed/abc123/600/360');
+test('turns photo ids into Unsplash images in the HTML', () => {
+  const email = composeEmail({ ...valid, photoIds: [PHOTO_IDS[0], PHOTO_IDS[1]] });
+  assert.ok(email.html.includes(`src="${photoUrl(PHOTO_IDS[0])}"`));
+  assert.ok(email.html.includes(`src="${photoUrl(PHOTO_IDS[1])}"`));
+});
+
+test('photo URLs point at Unsplash as 600x360 JPEGs', () => {
+  assert.equal(
+    photoUrl('1506744038136-46273834b3fb'),
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&h=360&fit=crop&fm=jpg&q=70',
+  );
+});
+
+test('offers a decent set of photos to shuffle through', () => {
+  assert.ok(PHOTO_IDS.length >= 20);
+  assert.equal(new Set(PHOTO_IDS).size, PHOTO_IDS.length, 'no duplicates');
 });
 
 test('allows an email with no images', () => {
-  const email = composeEmail({ ...valid, imageSeeds: [] });
+  const email = composeEmail({ ...valid, photoIds: [] });
   assert.ok(!email.html.includes('<img'));
 });
 
@@ -59,16 +71,17 @@ test('passes recipient and subject through unchanged', () => {
   assert.equal(email.subject, 'Your reference number PTA-2026-481927');
 });
 
-test('rejects an image seed that is not a simple word (no arbitrary URLs)', () => {
+test('rejects a photo that is not in the approved list (no arbitrary URLs)', () => {
   assert.throws(
-    () => composeEmail({ ...valid, imageSeeds: ['https://evil.example/x.png'] }),
+    () => composeEmail({ ...valid, photoIds: ['https://evil.example/x.png'] }),
     ValidationError,
   );
+  assert.throws(() => composeEmail({ ...valid, photoIds: ['abc123'] }), ValidationError);
 });
 
 test(`rejects more than ${MAX_IMAGES} images`, () => {
-  const seeds = Array.from({ length: MAX_IMAGES + 1 }, (_, i) => `s${i}`);
-  assert.throws(() => composeEmail({ ...valid, imageSeeds: seeds }), ValidationError);
+  const ids = PHOTO_IDS.slice(0, MAX_IMAGES + 1);
+  assert.throws(() => composeEmail({ ...valid, photoIds: ids }), ValidationError);
 });
 
 test('rejects a missing recipient', () => {
