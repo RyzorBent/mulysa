@@ -1,6 +1,8 @@
 // The hidden stats page. The password stays in the password box only; it is
 // sent with each "Show stats" / "Refresh" request and never saved by this page.
 
+import { periodTotals, compactDays } from './stats-view.js';
+
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat('en-ZA');
 
@@ -68,24 +70,42 @@ function breakdownRows(list, emptyText) {
   });
 }
 
+/** "No activity · 28 days (14 Oct – 11 Nov)" row spanning the table. */
+function gapRow(gap) {
+  const tr = document.createElement('tr');
+  tr.className = 'gap-row';
+  const td = document.createElement('td');
+  td.colSpan = 3;
+  const days = gap.count === 1 ? '1 day' : `${gap.count} days`;
+  const when = gap.count === 1
+    ? formatDay(gap.newest, false)
+    : `${formatDay(gap.oldest, false)} – ${formatDay(gap.newest, false)}`;
+  td.textContent = `No activity · ${days} (${when})`;
+  tr.append(td);
+  return tr;
+}
+
 function render(stats) {
-  $('today-visits').textContent = number.format(stats.today.visits);
-  $('today-sends').textContent = number.format(stats.today.sends);
+  // Tiles: the 30-day and all-time totals. Today is the first row of the table below.
+  const month = periodTotals(stats.days);
+  $('month-visits').textContent = number.format(month.visits);
+  $('month-sends').textContent = number.format(month.sends);
   $('total-visits').textContent = number.format(stats.totals.visits);
   $('total-sends').textContent = number.format(stats.totals.sends);
 
   // One shared scale for both columns: they're the same unit (a count per day),
   // so 5 visits must draw a longer bar than 2 sends.
   const max = Math.max(0, ...stats.days.flatMap((d) => [d.visits, d.sends]));
-  const rows = stats.days.map((day, i) => {
+  const rows = compactDays(stats.days).map((item) => {
+    if (item.type === 'gap') return gapRow(item);
     const tr = document.createElement('tr');
-    if (i === 0) tr.className = 'is-today';
-    if (day.visits === 0 && day.sends === 0) tr.classList.add('is-empty');
+    if (item.today) tr.className = 'is-today';
+    if (item.visits === 0 && item.sends === 0) tr.classList.add('is-empty');
     const th = document.createElement('th');
     th.scope = 'row';
-    th.textContent = formatDay(day.date, i === 0);
-    th.title = day.date;
-    tr.append(th, barCell(day.visits, max), barCell(day.sends, max));
+    th.textContent = formatDay(item.date, item.today);
+    th.title = item.date;
+    tr.append(th, barCell(item.visits, max), barCell(item.sends, max));
     return tr;
   });
   $('daily-rows').replaceChildren(...rows);

@@ -64,7 +64,8 @@ browser storage rules above hold.
 
 `/stats` (e.g. `https://mulysa.vercel.app/stats`) is a password-protected page for the owner. It isn't
 linked from the app and tells search engines not to index it. It shows **page visits** and **successful
-email sends** for today, each of the last 30 days, and all time, using South African days.
+email sends**: 30-day and all-time totals, then a day-by-day table (today first, only days with activity,
+quiet stretches folded into one "No activity" line), using South African days.
 
 - **What's counted:** a visit each time a person opens the page on the real address, and a send each
   time Gmail accepts an email. Failed or invalid sends aren't counted, and neither are opening `/stats`,
@@ -102,7 +103,7 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 110 tests, no network needed
+npm test           # 116 tests, no network needed
 ```
 
 Set `PORT` to use a different port. Set `STATS_PASSWORD` to try the stats page at `/stats` (counts are
@@ -156,6 +157,7 @@ lib/mailer.js      Gmail SMTP: one connection per request, logging off
 lib/photos.js      approved placeholder photo list
 lib/stats.js       anonymous daily visit/send counters (Upstash Redis)
 lib/visitor.js     city and device labels, and which visits count
-public/            the page (index.html, styles.css, app.js, storage.js) and the hidden stats.html/stats.js
+public/            the page (index.html, styles.css, app.js, storage.js) and the hidden stats page
+                   (stats.html, stats.js, stats-view.js)
 test/              node:test suites
 ```

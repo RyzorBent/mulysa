@@ -203,6 +203,10 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .photo button:foc
 .daily tr.is-today th { font-weight: 700; }
 .daily tr.is-empty { color: var(--muted); }
 .breakdown tbody th { white-space: normal; width: 40%; }
+/* Where from + Devices: side by side when there's room, stacked on a phone. */
+.breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.breakdowns .step { margin-bottom: 0; }
+.daily tr.gap-row td { color: var(--muted); font-size: 0.82rem; font-style: italic; padding: 8px 4px; }
 .bar-cell { display: flex; align-items: center; gap: 8px; }
 .bar-track { flex: 1; height: 8px; min-width: 40px; }
 .bar { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
@@ -225,3 +229,4 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .photo button:foc
   .send-row .btn { width: 100%; }
 }
 .step h2 .muted { margin-left: 6px; font-size: 0.85rem; }
+.page.page-wide { max-width: 960px; }

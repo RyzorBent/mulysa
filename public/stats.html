@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="page">
+  <main class="page page-wide">
     <header class="page-header">
       <h1>Usage stats</h1>
       <p class="lede">Page visits and successful email sends per day (South African time), with the city and broad device type they came from. Totals only, nothing about who.</p>
@@ -38,8 +38,8 @@
       </div>
 
       <div class="tiles">
-        <div class="tile"><span class="tile-label">Visits today</span><span class="tile-value" id="today-visits">0</span></div>
-        <div class="tile"><span class="tile-label">Sends today</span><span class="tile-value" id="today-sends">0</span></div>
+        <div class="tile"><span class="tile-label">Visits, 30 days</span><span class="tile-value" id="month-visits">0</span></div>
+        <div class="tile"><span class="tile-label">Sends, 30 days</span><span class="tile-value" id="month-sends">0</span></div>
         <div class="tile"><span class="tile-label">Visits, all time</span><span class="tile-value" id="total-visits">0</span></div>
         <div class="tile"><span class="tile-label">Sends, all time</span><span class="tile-value" id="total-sends">0</span></div>
       </div>
@@ -54,6 +54,7 @@
         </table>
       </section>
 
+      <div class="breakdowns">
       <section class="step">
         <h2>Where from <span class="muted">(last 30 days)</span></h2>
         <table class="daily breakdown">
@@ -73,6 +74,7 @@
           <tbody id="device-rows"></tbody>
         </table>
       </section>
+      </div>
     </div>
   </main>
 
