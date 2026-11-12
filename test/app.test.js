@@ -281,3 +281,89 @@ test('POST /api/stats explains when counting is not connected', async (t) => {
   assert.equal(res.status, 503);
   assert.match(res.json.error, /Redis/);
 });
+
+// ---------- where visits come from ----------
+
+import http from 'node:http';
+
+// fetch() won't let us set Host or User-Agent freely, so use a raw request.
+function rawGet(port, path, headers) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method: 'GET', headers }, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+
+async function startRaw(options) {
+  const app = createApp(options);
+  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  return { port: server.address().port, close: () => new Promise((r) => server.close(r)) };
+}
+
+test('a visit records the city and device from the request', async (t) => {
+  const counter = createMemoryCounter();
+  const { port, close } = await startRaw({ mailer: fakeMailer(), counter, env: { VERCEL: '1', VERCEL_PROJECT_PRODUCTION_URL: 'mulysa.vercel.app' } });
+  t.after(close);
+  await rawGet(port, '/api/config', {
+    host: 'mulysa.vercel.app',
+    'user-agent': PHONE_UA,
+    'x-vercel-ip-country': 'ZA',
+    'x-vercel-ip-city': 'Johannesburg',
+  });
+  const stats = await counter.read(1);
+  assert.equal(stats.today.visits, 1);
+  assert.deepEqual(stats.breakdown.places, [{ label: 'Johannesburg, South Africa', visits: 1, sends: 0 }]);
+  assert.deepEqual(stats.breakdown.devices, [{ label: 'Mobile · Android · Chrome', visits: 1, sends: 0 }]);
+});
+
+test("Vercel's own check of a new deployment is not counted as a visit", async (t) => {
+  const counter = createMemoryCounter();
+  const { port, close } = await startRaw({ mailer: fakeMailer(), counter, env: { VERCEL: '1', VERCEL_PROJECT_PRODUCTION_URL: 'mulysa.vercel.app' } });
+  t.after(close);
+  const status = await rawGet(port, '/api/config', { host: 'mulysa-b3k4dvc6x-ryzorbents-projects.vercel.app', 'user-agent': PHONE_UA });
+  assert.equal(status, 200, 'the page still works there');
+  assert.equal((await counter.read(1)).today.visits, 0);
+});
+
+test('a bot loading the page is not counted as a visit', async (t) => {
+  const counter = createMemoryCounter();
+  const { port, close } = await startRaw({ mailer: fakeMailer(), counter, env: {} });
+  t.after(close);
+  await rawGet(port, '/api/config', { host: 'localhost', 'user-agent': 'Mozilla/5.0 HeadlessChrome/131.0.0.0' });
+  assert.equal((await counter.read(1)).today.visits, 0);
+});
+
+test('a successful send records the city and device too', async (t) => {
+  const counter = createMemoryCounter();
+  const app = createApp({ mailer: fakeMailer(), counter, env: {} });
+  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  t.after(() => new Promise((r) => server.close(r)));
+  const body = JSON.stringify(sendBody);
+  await new Promise((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1', port: server.address().port, path: '/api/send', method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'user-agent': PHONE_UA, 'x-vercel-ip-country': 'ZA', 'x-vercel-ip-city': 'Durban' },
+    }, (res) => { res.resume(); res.on('end', resolve); });
+    req.on('error', reject);
+    req.end(body);
+  });
+  const stats = await counter.read(1);
+  assert.deepEqual(stats.breakdown.places, [{ label: 'Durban, South Africa', visits: 0, sends: 1 }]);
+  assert.deepEqual(stats.breakdown.devices, [{ label: 'Mobile · Android · Chrome', visits: 0, sends: 1 }]);
+});
+
+test('POST /api/stats includes the place and device breakdown', async (t) => {
+  const counter = createMemoryCounter();
+  await counter.recordVisit({ place: 'Musina, South Africa', device: 'Mobile · Android · Chrome' });
+  const { call, close } = await start({ mailer: fakeMailer(), counter, statsPassword: 'pw' });
+  t.after(close);
+  const res = await call('POST', '/api/stats', { password: 'pw' });
+  assert.deepEqual(res.json.breakdown.places, [{ label: 'Musina, South Africa', visits: 1, sends: 0 }]);
+  assert.deepEqual(res.json.breakdown.devices, [{ label: 'Mobile · Android · Chrome', visits: 1, sends: 0 }]);
+});

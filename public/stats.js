@@ -35,6 +35,39 @@ function barCell(value, max) {
   return td;
 }
 
+const BREAKDOWN_ROWS = 10;
+
+/** Top rows of a place/device breakdown, with the rest folded into "Everything else". */
+function breakdownRows(list, emptyText) {
+  if (!list.length) {
+    const tr = document.createElement('tr');
+    tr.className = 'is-empty';
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.textContent = emptyText;
+    tr.append(td);
+    return [tr];
+  }
+  const top = list.slice(0, BREAKDOWN_ROWS);
+  const rest = list.slice(BREAKDOWN_ROWS);
+  if (rest.length) {
+    top.push({
+      label: `Everything else (${rest.length})`,
+      visits: rest.reduce((n, r) => n + r.visits, 0),
+      sends: rest.reduce((n, r) => n + r.sends, 0),
+    });
+  }
+  const max = Math.max(0, ...top.flatMap((r) => [r.visits, r.sends]));
+  return top.map((row) => {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.scope = 'row';
+    th.textContent = row.label;
+    tr.append(th, barCell(row.visits, max), barCell(row.sends, max));
+    return tr;
+  });
+}
+
 function render(stats) {
   $('today-visits').textContent = number.format(stats.today.visits);
   $('today-sends').textContent = number.format(stats.today.sends);
@@ -56,6 +89,10 @@ function render(stats) {
     return tr;
   });
   $('daily-rows').replaceChildren(...rows);
+
+  const breakdown = stats.breakdown ?? { places: [], devices: [] };
+  $('place-rows').replaceChildren(...breakdownRows(breakdown.places, 'No visits yet.'));
+  $('device-rows').replaceChildren(...breakdownRows(breakdown.devices, 'No visits yet.'));
 
   $('stats-updated').textContent = `Updated ${new Date().toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}`;
   $('stats').hidden = false;
@@ -100,6 +137,8 @@ $('btn-refresh').addEventListener('click', load);
 $('btn-lock').addEventListener('click', () => {
   $('password').value = '';
   $('daily-rows').replaceChildren();
+  $('place-rows').replaceChildren();
+  $('device-rows').replaceChildren();
   $('stats').hidden = true;
   $('unlock-step').hidden = false;
   setStatus('Locked.', 'ok');

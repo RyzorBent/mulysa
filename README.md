@@ -66,11 +66,19 @@ browser storage rules above hold.
 linked from the app and tells search engines not to index it. It shows **page visits** and **successful
 email sends** for today, each of the last 30 days, and all time, using South African days.
 
-- **What's counted:** a visit each time the page is opened, and a send each time Gmail accepts an email.
-  Failed or invalid sends aren't counted. Opening `/stats` doesn't count as a visit.
-- **What's stored:** two numbers per day in Upstash Redis (`mulysa:day:YYYY-MM-DD` → `{visits, sends}`,
-  expiring after about 13 months) plus all-time totals. No IP addresses, email addresses or anything
-  else about who visited.
+- **What's counted:** a visit each time a person opens the page on the real address, and a send each
+  time Gmail accepts an email. Failed or invalid sends aren't counted, and neither are opening `/stats`,
+  bots/headless browsers, or Vercel's own checks of each new deployment (its one-off
+  `*-<hash>-<team>.vercel.app` addresses).
+- **Where from and which devices:** each visit/send also adds 1 to its **city** (from Vercel's
+  `x-vercel-ip-city` / `x-vercel-ip-country` headers, e.g. "Johannesburg, South Africa") and its broad
+  **device** ("Mobile · Android · Chrome", no versions; see [`lib/visitor.js`](lib/visitor.js)). The stats
+  page shows the top 10 of each for the last 30 days.
+- **What's stored:** only daily totals in Upstash Redis: `mulysa:day:YYYY-MM-DD` → `{visits, sends}`, and
+  `…:places:visits|sends` / `…:devices:visits|sends` → `{label: count}`, all expiring after about 13
+  months, plus all-time totals. Places and devices are tallied separately, so nothing links a place to a
+  device or either to a person. No IP addresses, email addresses or user agents are stored. The app's
+  footer says this to visitors.
 - **Settings:** `STATS_PASSWORD` unlocks the page; without it the page is switched off. The Redis
   connection comes from the Upstash for Redis Marketplace integration (`KV_REST_API_URL` /
   `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
@@ -94,7 +102,7 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 83 tests, no network needed
+npm test           # 110 tests, no network needed
 ```
 
 Set `PORT` to use a different port. Set `STATS_PASSWORD` to try the stats page at `/stats` (counts are
@@ -147,6 +155,7 @@ lib/email.js       validates input, builds the email, adds the locked notice
 lib/mailer.js      Gmail SMTP: one connection per request, logging off
 lib/photos.js      approved placeholder photo list
 lib/stats.js       anonymous daily visit/send counters (Upstash Redis)
+lib/visitor.js     city and device labels, and which visits count
 public/            the page (index.html, styles.css, app.js, storage.js) and the hidden stats.html/stats.js
 test/              node:test suites
 ```

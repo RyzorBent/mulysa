@@ -84,6 +84,63 @@ for (const [name, make] of Object.entries(counters)) {
   });
 }
 
+for (const [name, make] of Object.entries(counters)) {
+  test(`${name} counter: tallies places and devices for the period, busiest first`, async () => {
+    const counter = make();
+    const jhb = 'Johannesburg, South Africa';
+    const cpt = 'Cape Town, South Africa';
+    const phone = 'Mobile · Android · Chrome';
+    const mac = 'Desktop · macOS · Safari';
+    await counter.recordVisit({ place: jhb, device: phone });
+    await counter.recordVisit({ place: jhb, device: mac });
+    await counter.recordVisit({ place: cpt, device: phone });
+    await counter.recordSend({ place: jhb, device: phone });
+    const { breakdown } = await counter.read(7);
+    assert.deepEqual(breakdown.places, [
+      { label: jhb, visits: 2, sends: 1 },
+      { label: cpt, visits: 1, sends: 0 },
+    ]);
+    assert.deepEqual(breakdown.devices, [
+      { label: phone, visits: 2, sends: 1 },
+      { label: mac, visits: 1, sends: 0 },
+    ]);
+  });
+
+  test(`${name} counter: a visit with no details is filed under Unknown`, async () => {
+    const counter = make();
+    await counter.recordVisit();
+    const { breakdown } = await counter.read(1);
+    assert.deepEqual(breakdown.places, [{ label: 'Unknown place', visits: 1, sends: 0 }]);
+    assert.deepEqual(breakdown.devices, [{ label: 'Unknown device', visits: 1, sends: 0 }]);
+  });
+}
+
+test('breakdowns add up across days in the period', async () => {
+  let now = new Date('2026-11-11T08:00:00Z');
+  const counter = createMemoryCounter({ now: () => now });
+  await counter.recordVisit({ place: 'Durban, South Africa', device: 'Mobile · iOS · Safari' });
+  now = new Date('2026-11-12T08:00:00Z');
+  await counter.recordVisit({ place: 'Durban, South Africa', device: 'Mobile · iOS · Safari' });
+  const { breakdown } = await counter.read(2);
+  assert.deepEqual(breakdown.places, [{ label: 'Durban, South Africa', visits: 2, sends: 0 }]);
+  const todayOnly = await counter.read(1);
+  assert.deepEqual(todayOnly.breakdown.places, [{ label: 'Durban, South Africa', visits: 1, sends: 0 }]);
+});
+
+test('redis counter: place and device tallies live in their own per-day keys that also expire', async () => {
+  const redis = fakeRedis();
+  const counter = createRedisCounter(redis, { now: () => NOW });
+  await counter.recordVisit({ place: 'Musina, South Africa', device: 'Mobile · Android · Chrome' });
+  await counter.recordSend({ place: 'Musina, South Africa', device: 'Mobile · Android · Chrome' });
+  assert.deepEqual(redis.hashes.get('mulysa:day:2026-11-12:places:visits'), { 'Musina, South Africa': 1 });
+  assert.deepEqual(redis.hashes.get('mulysa:day:2026-11-12:places:sends'), { 'Musina, South Africa': 1 });
+  assert.deepEqual(redis.hashes.get('mulysa:day:2026-11-12:devices:visits'), { 'Mobile · Android · Chrome': 1 });
+  assert.deepEqual(redis.hashes.get('mulysa:day:2026-11-12:devices:sends'), { 'Mobile · Android · Chrome': 1 });
+  for (const key of ['places:visits', 'places:sends', 'devices:visits', 'devices:sends']) {
+    assert.equal(redis.expiries.get(`mulysa:day:2026-11-12:${key}`), 400 * 24 * 60 * 60, key);
+  }
+});
+
 test('redis counter: day keys expire after about 13 months so old data cleans itself up', async () => {
   const redis = fakeRedis();
   const counter = createRedisCounter(redis, { now: () => NOW });
@@ -97,7 +154,9 @@ test('redis counter: stores counts only, under mulysa: keys', async () => {
   const counter = createRedisCounter(redis, { now: () => NOW });
   await counter.recordVisit();
   await counter.recordSend();
-  assert.deepEqual([...redis.hashes.keys()].sort(), ['mulysa:day:2026-11-12', 'mulysa:totals']);
+  assert.ok(redis.hashes.has('mulysa:day:2026-11-12'));
+  assert.ok(redis.hashes.has('mulysa:totals'));
+  assert.ok([...redis.hashes.keys()].every((k) => k.startsWith('mulysa:')));
   assert.deepEqual(redis.hashes.get('mulysa:day:2026-11-12'), { visits: 1, sends: 1 });
 });
 
