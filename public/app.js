@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 
 // Only non-sensitive page state lives here.
 const state = {
+  accessCodeRequired: false,
   maxImages: 4,
   seeds: [],          // Lorem Picsum seeds for the photos
   current: null,      // { number, province } of the last generated number
@@ -16,11 +17,25 @@ const state = {
 
 // ---------- helpers ----------
 
+/** Draws the tester's eye to the access code box: scroll to it, outline it, focus it. */
+function flagAccessCode() {
+  const input = $('access-code');
+  input.classList.add('needs-attention');
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  input.focus({ preventScroll: true });
+}
+
 /** Calls the API. Throws an Error with the server's friendly message on failure. */
 async function api(path, body) {
   const headers = { 'content-type': 'application/json' };
   const code = $('access-code').value.trim();
   if (code) headers['x-access-code'] = code;
+
+  // Don't bother the server if we already know the code is missing.
+  if (state.accessCodeRequired && !code && path !== '/api/config') {
+    flagAccessCode();
+    throw new Error('Enter the tester access code at the top of the page first.');
+  }
 
   let res;
   try {
@@ -36,9 +51,13 @@ async function api(path, body) {
 
   let data = {};
   try { data = await res.json(); } catch { /* non-JSON reply */ }
+  if (data.reason?.startsWith('access-code-')) flagAccessCode();
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
   return data;
 }
+
+// Clear the highlight as soon as they start typing a code.
+$('access-code').addEventListener('input', () => $('access-code').classList.remove('needs-attention'));
 
 function setStatus(el, text, kind) {
   el.textContent = text;
@@ -294,6 +313,7 @@ async function init() {
 
     $('locked-notice').textContent = `"${config.lockedNotice}"`;
     $('step-access').hidden = !config.accessCodeRequired;
+    state.accessCodeRequired = config.accessCodeRequired;
     state.maxImages = config.maxImages;
   } catch (err) {
     showResult((box) => addLine(box, `✗ Could not load the page settings: ${err.message}`, 'err'));

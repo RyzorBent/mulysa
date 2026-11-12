@@ -106,6 +106,18 @@ test('with an access code set, a wrong code is refused', async (t) => {
   t.after(close);
   const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' }, { 'x-access-code': 'nope' });
   assert.equal(res.status, 401);
+  assert.equal(res.json.reason, 'access-code-wrong');
+  assert.match(res.json.error, /not right/i);
+});
+
+test('with an access code set, a missing code asks for it rather than calling it wrong', async (t) => {
+  const { call, close } = await start({ mailer: fakeMailer(), accessCode: 'letmein' });
+  t.after(close);
+  const res = await call('POST', '/api/generate', { province: 'Gauteng (Pretoria)' });
+  assert.equal(res.status, 401);
+  assert.equal(res.json.reason, 'access-code-missing');
+  assert.match(res.json.error, /enter the tester access code/i);
+  assert.doesNotMatch(res.json.error, /not right/i);
 });
 
 test('with an access code set, config still loads and says a code is needed', async (t) => {
