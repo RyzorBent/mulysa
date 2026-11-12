@@ -1,11 +1,23 @@
 // Front-end for the mock reference demo.
 //
-// PRIVACY: the Gmail address and app password are read straight
-// from their input boxes at the moment a request is made. They are not copied
-// into any variable that lives on, and nothing is put in localStorage,
-// sessionStorage or cookies. Reloading the page clears everything.
+// PRIVACY: nothing the tester types is ever stored on the server. In the
+// browser (localStorage only, see storage.js):
+//   - addresses they've sent to are remembered, for the "To" drop-down;
+//   - their Gmail address + app password are remembered ONLY if they tick
+//     "Remember my Gmail details on this device".
+// Both can be cleared from the page at any time. No cookies, no sessionStorage.
+
+import {
+  loadRecipients, rememberRecipient, clearRecipients,
+  loadCredentials, saveCredentials, clearCredentials,
+} from './storage.js';
 
 const $ = (id) => document.getElementById(id);
+
+// localStorage itself can be blocked (e.g. some private-browsing modes); then we just don't remember.
+const store = (() => {
+  try { return window.localStorage; } catch { return null; }
+})();
 
 // Only non-sensitive page state lives here.
 const state = {
@@ -78,25 +90,66 @@ $('btn-verify').addEventListener('click', async () => {
   }
 });
 
-function forgetDetails() {
+function clearDetailFields() {
   $('gmail').value = '';
   $('app-password').value = '';
   setStatus($('verify-status'), '');
 }
 
-$('btn-forget').addEventListener('click', () => {
-  forgetDetails();
-  setStatus($('verify-status'), 'Cleared. Your details are gone from this page.', 'ok');
-});
-
-// Typing new details invalidates the old "Connected" message.
-for (const id of ['gmail', 'app-password']) {
-  $(id).addEventListener('input', () => setStatus($('verify-status'), ''));
+function saveDetailsIfRemembering() {
+  if ($('remember-me').checked) saveCredentials(store, credentials());
 }
 
-// If the browser restores this page from its back/forward cache, wipe the password.
+$('btn-forget').addEventListener('click', () => {
+  clearDetailFields();
+  clearCredentials(store);
+  $('remember-me').checked = false;
+  setStatus($('verify-status'), 'Cleared. Your details are gone from this page and this browser.', 'ok');
+});
+
+$('remember-me').addEventListener('change', () => {
+  if ($('remember-me').checked) {
+    saveCredentials(store, credentials());
+    setStatus($('verify-status'), 'Your Gmail details will be remembered in this browser only.', 'ok');
+  } else {
+    clearCredentials(store);
+    setStatus($('verify-status'), 'This browser no longer remembers your Gmail details.', 'ok');
+  }
+});
+
+for (const id of ['gmail', 'app-password']) {
+  $(id).addEventListener('input', () => {
+    setStatus($('verify-status'), ''); // new details invalidate an old "Connected" message
+    saveDetailsIfRemembering();
+  });
+}
+
+// If the browser restores this page from its back/forward cache, wipe the
+// fields unless the tester asked us to remember them.
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) forgetDetails();
+  if (event.persisted && !$('remember-me').checked) clearDetailFields();
+});
+
+// ---------- saved recipients ----------
+
+function renderRecipients() {
+  const saved = loadRecipients(store);
+  const options = $('recipient-options');
+  options.replaceChildren(...saved.map((address) => {
+    const option = document.createElement('option');
+    option.value = address;
+    return option;
+  }));
+  $('saved-recipients').hidden = saved.length === 0;
+  $('saved-recipients-info').textContent = saved.length === 1
+    ? '1 saved address: click the To box to pick it.'
+    : `${saved.length} saved addresses: click the To box to pick one.`;
+  $('to').placeholder = saved.length ? 'Type an address, or pick a saved one' : 'recipient@example.com';
+}
+
+$('btn-clear-recipients').addEventListener('click', () => {
+  clearRecipients(store);
+  renderRecipients();
 });
 
 // ---------- steps 2 & 3: province and number ----------
@@ -245,6 +298,10 @@ $('btn-send').addEventListener('click', async () => {
       photoIds: state.photoIds,
     });
 
+    // Remember who we sent to, in this browser only, for the To drop-down next time.
+    for (const address of data.accepted) rememberRecipient(store, address);
+    renderRecipients();
+
     const time = new Date(data.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     showResult((box) => {
       addLine(box, `✓ Accepted by Gmail at ${time}`, 'ok');
@@ -282,6 +339,15 @@ $('btn-send').addEventListener('click', async () => {
 // ---------- start-up ----------
 
 async function init() {
+  // Restore anything this browser was asked to remember.
+  const saved = loadCredentials(store);
+  if (saved) {
+    $('gmail').value = saved.gmail;
+    $('app-password').value = saved.appPassword;
+    $('remember-me').checked = true;
+  }
+  renderRecipients();
+
   try {
     const config = await api('/api/config');
 

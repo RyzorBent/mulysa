@@ -27,21 +27,33 @@ Every email ends with this notice, added on the server so it can't be edited out
 
 ## What happens to testers' details
 
-**Nothing is stored.** Specifically:
+**The server stores nothing.** Anything remembered lives only in the tester's own browser, and they can clear it at any time.
 
-- The Gmail address and app password stay in the input boxes on the page. They are read at the moment
-  you click *Test connection* or *Send*, sent to the server with that one request over HTTPS, used to log
-  in to Gmail, and then dropped. There is no database, no file, no session, no cookie and no
-  `localStorage`/`sessionStorage`.
+On the server:
+
+- The Gmail address and app password arrive with a single request over HTTPS, are used to log in to
+  Gmail for that request, and are then dropped. There is no database, no file, no session and no cookie.
 - A new Gmail connection is opened for each request and closed straight after.
 - Nodemailer's logging is switched off. The server never logs request bodies. On a mail error it logs
   only the error *code* (e.g. `EAUTH`), and the tester sees a fixed message that never repeats what they typed.
-- *Forget my details* empties the fields immediately; reloading the page does the same.
-- Like any email, a copy of each sent message appears in the tester's own Gmail **Sent** folder. That is
-  Gmail's doing, not this app's.
 
-The code that touches credentials is short and commented: [`lib/mailer.js`](lib/mailer.js) and
-[`lib/app.js`](lib/app.js). Tests check that the password is never echoed back or logged.
+In the tester's browser (`localStorage` only; see [`public/storage.js`](public/storage.js)):
+
+| What | When it's saved | How to clear it |
+|---|---|---|
+| Addresses you've sent to (up to 20, newest first) | Automatically after each successful send, so the **To** box offers them in a drop-down next time | **Clear saved addresses** under the To box |
+| Gmail address + app password | **Only** if you tick *Remember my Gmail details on this device* | **Forget my details**, or untick the box |
+
+Saved Gmail details are kept **unencrypted** in that browser, so only tick the box on your own computer,
+never a shared one. The page sets a strict Content-Security-Policy (only its own scripts, photos only
+from Unsplash, requests only to its own API) to make it harder for anything else to read that storage.
+
+Like any email, a copy of each sent message appears in the tester's own Gmail **Sent** folder. That is
+Gmail's doing, not this app's.
+
+The server code that touches credentials is short and commented: [`lib/mailer.js`](lib/mailer.js) and
+[`lib/app.js`](lib/app.js). Tests check that the password is never echoed back or logged, and that the
+browser storage rules above hold.
 
 **Advice for testers:** create an app password just for this demo and delete it afterwards at
 <https://myaccount.google.com/apppasswords>. Once it's deleted it stops working, whatever happens.
@@ -61,7 +73,7 @@ Requires Node.js 20 or newer.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 43 tests, no network needed
+npm test           # 58 tests, no network needed
 ```
 
 Set `PORT` to use a different port.
@@ -109,6 +121,6 @@ lib/reference.js   provinces and mock number generation
 lib/email.js       validates input, builds the email, adds the locked notice
 lib/mailer.js      Gmail SMTP: one connection per request, logging off
 lib/photos.js      approved placeholder photo list
-public/            the page (index.html, styles.css, app.js)
+public/            the page (index.html, styles.css, app.js, storage.js)
 test/              node:test suites
 ```

@@ -108,6 +108,16 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .photo button:foc
   outline-offset: 1px;
 }
 
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; margin: 2px 0 8px; cursor: pointer; }
+.check input { margin-top: 4px; width: 16px; height: 16px; flex-shrink: 0; }
+
+.saved-row { margin-top: -4px; justify-content: space-between; }
+.btn.link {
+  background: none; border: none; padding: 0;
+  color: var(--accent); font-weight: 600; font-size: 0.85rem;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
 .field-label { display: block; font-size: 0.85rem; font-weight: 600; margin: 4px 0 6px; }
 .muted { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
 .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
