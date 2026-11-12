@@ -35,6 +35,7 @@ function cleanAccessCode(value) {
 /** Draws the tester's eye to the access code box: scroll to it, outline it, focus it. */
 function flagAccessCode() {
   const input = $('access-code');
+  $('step-access').hidden = false; // may have been hidden because the code came in the link
   input.classList.add('needs-attention');
   input.scrollIntoView({ behavior: 'smooth', block: 'center' });
   input.focus({ preventScroll: true });
@@ -316,6 +317,13 @@ $('btn-send').addEventListener('click', async () => {
 
 // ---------- start-up ----------
 
+/** Reads ?code=… or #code=… from the page address, if present. */
+function accessCodeFromLink() {
+  const fromQuery = new URLSearchParams(location.search).get('code');
+  const fromHash = new URLSearchParams(location.hash.slice(1)).get('code');
+  return (fromQuery || fromHash || '').trim();
+}
+
 async function init() {
   try {
     const config = await api('/api/config');
@@ -329,7 +337,12 @@ async function init() {
     }
 
     $('locked-notice').textContent = `"${config.lockedNotice}"`;
-    $('step-access').hidden = !config.accessCodeRequired;
+    // Testers can be sent a link with the code in it (…/?code=XYZ or …/#code=XYZ),
+    // so they never have to type it. Then the code box stays out of the way,
+    // unless the code turns out to be wrong.
+    const codeFromLink = accessCodeFromLink();
+    if (codeFromLink) $('access-code').value = codeFromLink;
+    $('step-access').hidden = !config.accessCodeRequired || Boolean(codeFromLink);
     state.accessCodeRequired = config.accessCodeRequired;
     state.maxImages = config.maxImages;
     state.photos = config.photos;

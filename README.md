@@ -80,6 +80,11 @@ files in `public/` are served by Vercel's CDN.
    Project → Settings → Environment Variables → `ACCESS_CODE` = something you share with testers.
    Without it, anyone who finds the link can use the app. Testers can type it in any case, and stray
    spaces, quotes or "smart" dashes from copy-pasting are ignored.
+
+   **Easiest for testers:** send them a link with the code in it, so they never see the code box:
+   `https://<your-app>.vercel.app/?code=<the code>` (or `#code=<the code>`). Anyone opening the plain
+   address without the code still gets stopped. Don't hard-code the code into the page itself: anyone
+   can read page source, so that would be the same as having no code at all.
 3. Redeploy after adding the variable.
 
 Why not Render's free plan: since September 2025 it blocks the outgoing ports Gmail needs (465/587).
