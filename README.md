@@ -1,5 +1,7 @@
 # Mock Asylum Reference Generator (learning demo)
 
+**Live app: <https://mulysa.vercel.app>**
+
 > ⚠ **Learning demo.** Every reference number this app makes is random and **fake**. It is not issued by,
 > registered with, or checked against the Department of Home Affairs. The app never contacts any
 > government system.
